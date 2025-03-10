@@ -48,11 +48,13 @@
 			<artifactId>sqlite-jdbc</artifactId>
 			<version>3.45.1.0</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
 		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+			<version>3.2.0</version>
 		</dependency>
+
 	</dependencies>
 
 	<build>
