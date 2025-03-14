@@ -9,5 +9,7 @@ package group.debug.comment;
  */
 public enum CommentStatus {
     WAITING,
-    PASSED
+    PASSED,
+    REJECTED,
+    DELETED
 }

@@ -32,18 +32,23 @@ public class Comment {
     @Column(name = "url", nullable = false, length = 512)
     private String url;
 
+    @NotBlank(message = "Title 不能为空")
+    @Size(min = 3, max = 512, message = "标题长度应在 3～512 个字符")
+    @Column(name = "title", nullable = false, length = 512)
+    private String title;
+
     @Column(name = "parent_id", nullable = true)
     private Long parentId;
 
     @NotBlank(message = "用户名不能为空")
-    @Size(min = 3, max = 64, message = "用户名长度应在 3～64 个字符")
-    @Column(name = "username", nullable = false, unique = true, length = 64)
+    @Size(min = 2, max = 64, message = "用户名长度应在 2～64 个字符")
+    @Column(name = "username", nullable = false, length = 64)
     private String username;
 
     @Email(message = "邮箱格式不正确")
     @NotBlank(message = "邮箱不能为空")
-    @Size(max = 128, message = "邮箱长度不能超过 128 个字符")
-    @Column(name = "email", nullable = false, unique = true, length = 128)
+    @Size(min = 3, max = 128, message = "邮箱长度不能超过 128 个字符")
+    @Column(name = "email", nullable = false, length = 128)
     private String email;
 
     @Size(max = 255, message = "个人网站长度不能超过 255 个字符")
@@ -131,6 +136,14 @@ public class Comment {
 
     public void setStatus(CommentStatus status) {
         this.status = status;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 }
 

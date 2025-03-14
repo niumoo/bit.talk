@@ -23,7 +23,7 @@ public class ProofOfWorkUtils {
     /**
      * 工作量证明难度
      */
-    private static final int DIFFICULTY = 5;
+    private static final int DIFFICULTY = 4;
     /**
      * challenge 过期时间
      */
@@ -40,8 +40,8 @@ public class ProofOfWorkUtils {
 
     // 使用 caffeine cache 存储已发出的 challenges
     private static Cache<String, Challenge> challenges = Caffeine.newBuilder()
-        .expireAfterWrite(6, TimeUnit.SECONDS)
-        .maximumSize(1000)
+        .expireAfterWrite(10, TimeUnit.SECONDS)
+        .maximumSize(10000)
         .build();
 
     record Challenge(String timestamp, String random, int difficulty) {}
