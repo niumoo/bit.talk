@@ -47,7 +47,7 @@ public class Comment {
 
     @Email(message = "邮箱格式不正确")
     @NotBlank(message = "邮箱不能为空")
-    @Size(min = 3, max = 128, message = "邮箱长度不能超过 128 个字符")
+    @Size(min = 4, max = 128, message = "邮箱长度不能超过 128 个字符")
     @Column(name = "email", nullable = false, length = 128)
     private String email;
 
@@ -57,6 +57,7 @@ public class Comment {
 
     @NotBlank(message = "评论内容不能为空")
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
+    @Size(min = 2, max = 1024, message = "评论内容不能超过 1024 个字")
     private String content;
 
     @Column(name = "created_at", nullable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")

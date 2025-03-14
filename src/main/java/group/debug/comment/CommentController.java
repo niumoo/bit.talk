@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,10 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @ResponseBody
 public class CommentController {
-    public static final String PASSWORD = "Basic d2RieXRlOmRlbGV0ZQ==";
+
+    @Value("${password}")
+    public  String password;
+
     private Logger log = LoggerFactory.getLogger(CommentController.class);
 
-    private final Pageable limit = Pageable.ofSize(1000);
+    private final Pageable limit = Pageable.ofSize(15);
 
     @Autowired
     private CommentRepository commentRepository;
@@ -65,20 +69,65 @@ public class CommentController {
         return ResponseEntity.ok(comments);
     }
 
-    @GetMapping("/api/v1/comment/status/{waiting}")
-    public ResponseEntity<String> findByStatus(@PathVariable String waiting, HttpServletRequest request) {
+    @GetMapping("/api/v1/comment/status/{status}")
+    public ResponseEntity<String> findByStatus(@PathVariable String status, HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
-        if (!PASSWORD.equals(auth)) {
+        if (!password.equals(auth)) {
             return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
         }
-        log.info("find comment by status:{}", waiting);
+        log.info("find comment by status:{}", status);
         List<Comment> comment = new ArrayList<>(0);
-        if (CommentStatus.WAITING.name().toLowerCase().equals(waiting)) {
+        if (CommentStatus.WAITING.name().toLowerCase().equals(status)) {
             comment = commentRepository.findByStatusOrderByIdDesc(CommentStatus.WAITING, limit);
         }
-        if (CommentStatus.PASSED.name().toLowerCase().equals(waiting)) {
+        if (CommentStatus.PASSED.name().toLowerCase().equals(status)) {
             comment = commentRepository.findByStatusOrderByIdDesc(CommentStatus.PASSED, limit);
         }
+        if (CommentStatus.REJECTED.name().toLowerCase().equals(status)) {
+            comment = commentRepository.findByStatusOrderByIdDesc(CommentStatus.REJECTED, limit);
+        }
         return ResponseEntity.ok(JSON.toJSONString(comment));
+    }
+
+    @PostMapping("/api/v1/comment/{id}/passed")
+    public ResponseEntity<String> passed(@PathVariable Long id, HttpServletRequest request) {
+        String auth = request.getHeader("Authorization");
+        if (!password.equals(auth)) {
+            return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
+        }
+        log.info("passed comment by id:{}", id);
+        commentRepository.findById(id).ifPresent(comment -> {
+            comment.setStatus(CommentStatus.PASSED);
+            commentRepository.save(comment);
+        });
+        return ResponseEntity.ok("success");
+    }
+
+    @PostMapping("/api/v1/comment/{id}/rejected")
+    public ResponseEntity<String> rejected(@PathVariable Long id, HttpServletRequest request) {
+        String auth = request.getHeader("Authorization");
+        if (!password.equals(auth)) {
+            return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
+        }
+        log.info("rejected comment by id:{}", id);
+        commentRepository.findById(id).ifPresent(comment -> {
+            comment.setStatus(CommentStatus.REJECTED);
+            commentRepository.save(comment);
+        });
+        return ResponseEntity.ok("success");
+    }
+
+    @PostMapping("/api/v1/comment/{id}/delete")
+    public ResponseEntity<String> delete(@PathVariable Long id, HttpServletRequest request) {
+        String auth = request.getHeader("Authorization");
+        if (!password.equals(auth)) {
+            return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
+        }
+        log.info("delete comment by id:{}", id);
+        commentRepository.findById(id).ifPresent(comment -> {
+            comment.setStatus(CommentStatus.DELETED);
+            commentRepository.save(comment);
+        });
+        return ResponseEntity.ok("success");
     }
 }
