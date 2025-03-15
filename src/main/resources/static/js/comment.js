@@ -1,4 +1,17 @@
 // js/comment.js
+class Comment {
+    static apiBaseUrl = '';
+
+    static init(config) {
+        if (config && config.apiBaseUrl) {
+            Comment.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, '');
+        }
+    }
+
+    static getApiUrl(path) {
+        return `${Comment.apiBaseUrl}${path}`;
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("bit-talk");
@@ -78,8 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function addStyles() {
     const style = document.createElement('style');
     style.textContent = `
-            #bit-talk {
-            max-width: 800px;
+        #bit-talk {
+            max-width: 700px;
             margin: 0 auto;
             padding: 20px;
             font-size: 16px;
@@ -99,6 +112,7 @@ function addStyles() {
             min-width: 0;
             padding: 10px;
             border: 1px solid #d0d0d0;
+            background-color: white;
             border-radius: 4px;
         }
 
@@ -155,17 +169,16 @@ function addStyles() {
     document.head.appendChild(style);
 }
 
-
 // 创建评论表单
 function createCommentForm() {
     const form = document.createElement("form");
     form.className = "cmt-form";
     form.innerHTML = `
-            <input type="text" name="username" required placeholder="昵称" oninvalid="this.setCustomValidity('请输入昵称')" oninput="this.setCustomValidity('')">
-            <input type="email" name="email" required placeholder="邮箱" oninvalid="this.setCustomValidity('请输入正确的邮箱格式')" oninput="this.setCustomValidity('')">
-            <input type="url" name="website" placeholder="网址（可选）">
-            <textarea name="content" required placeholder="评论内容" oninvalid="this.setCustomValidity('请输入内容')" oninput="this.setCustomValidity('')"></textarea>
-            <button type="submit" id="cmt-send">发送</button>
+        <input type="text" name="username" required placeholder="昵称" oninvalid="this.setCustomValidity('请输入昵称')" oninput="this.setCustomValidity('')">
+        <input type="email" name="email" required placeholder="邮箱" oninvalid="this.setCustomValidity('请输入正确的邮箱格式')" oninput="this.setCustomValidity('')">
+        <input type="url" name="website" placeholder="网址（可选）">
+        <textarea name="content" required placeholder="评论内容" oninvalid="this.setCustomValidity('请输入内容')" oninput="this.setCustomValidity('')" style="font-size: 1em"></textarea>
+        <button type="submit" id="cmt-send">发送</button>
     `;
     return form;
 }
@@ -178,7 +191,7 @@ async function loadComments() {
     const url = window.location.href;
     const encodedUrl = btoa(url);
     try {
-        const response = await fetch(`/api/v1/comment/${encodedUrl}`);
+        const response = await fetch(Comment.getApiUrl(`/api/v1/comment/${encodedUrl}`));
         if (!response.ok) throw new Error("加载评论失败");
 
         const comments = await response.json();
@@ -187,13 +200,16 @@ async function loadComments() {
             const commentItem = document.createElement("div");
             commentItem.className = "cmt-item";
             commentItem.innerHTML = `
-        <div class="cmt-header">
-          <strong class="cmt-author">${comment.username}</strong>
-          <span class="cmt-date">${new Date(comment.createdAt).toLocaleString()}</span>
-        </div>
-        <div class="cmt-content">${comment.content}</div>
-        ${comment.website ? `<a href="${comment.website}" target="_blank" class="cmt-website">个人网站</a>` : ''}
-      `;
+                <div class="cmt-header">
+                    <strong class="cmt-author">
+                        ${comment.website
+                ? `<a href="${comment.website}" target="_blank" rel="noopener noreferrer">${comment.username}</a>`
+                : comment.username}
+                    </strong>
+                    <span class="cmt-date">${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}</span>
+                </div>
+                <div class="cmt-content">${comment.content}</div>
+            `;
             commentList.appendChild(commentItem);
         });
     } catch (error) {
@@ -202,9 +218,10 @@ async function loadComments() {
     }
 }
 
+
 // 获取 PoW 挑战
 async function fetchPowChallenge() {
-    const response = await fetch("/api/v1/pow/generate");
+    const response = await fetch(Comment.getApiUrl("/api/v1/pow/generate"));
     if (!response.ok) throw new Error("获取 PoW 挑战失败");
     return response.json();
 }
@@ -232,7 +249,7 @@ async function calculateNonce(timestamp, random, difficulty) {
 
 // 提交评论
 async function submitComment(commentData, timestamp, random, nonce) {
-    const response = await fetch("/api/v1/comment", {
+    const response = await fetch(Comment.getApiUrl("/api/v1/comment"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

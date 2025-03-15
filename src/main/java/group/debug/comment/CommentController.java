@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @ResponseBody
+@CrossOrigin(origins = {"https://www.wdbyte.com", "https://bing.wdbyte.com", "http://localhost:8000"})
 public class CommentController {
 
     private Logger log = LoggerFactory.getLogger(CommentController.class);
@@ -31,7 +33,7 @@ public class CommentController {
     @Value("${password}")
     private String password;
 
-    private final Pageable limit = Pageable.ofSize(15);
+    private final Pageable limit = Pageable.ofSize(100);
 
     @Autowired
     private CommentRepository commentRepository;
@@ -60,7 +62,10 @@ public class CommentController {
         log.info("find comment by url:{}", url);
         String decodedUrl = new String(Base64.getDecoder().decode(url));
         List<Comment> comments = commentRepository.findByUrlAndStatusOrderByIdDesc(decodedUrl, CommentStatus.PASSED, limit);
-        comments.forEach(comment -> comment.setEmail(null));
+        comments.forEach(comment -> {
+            comment.setEmail(null);
+            comment.setStatus(null);
+        });
         return ResponseEntity.ok(comments);
     }
 
