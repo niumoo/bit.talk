@@ -153,6 +153,44 @@
     let comments = [];
     let currentTab = 'waiting';
 
+    // 添加SHA256哈希函数
+    async function sha256(message) {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // 修改checkPassword函数
+    async function checkPassword() {
+        const inputPassword = document.getElementById('passwordInput').value;
+        let hashedPassword = inputPassword;
+
+        // 进行20万次SHA256哈希
+        for (let i = 0; i < 100000; i++) {
+            hashedPassword = await sha256(hashedPassword);
+        }
+
+        fetch('/api/v1/comment/status/waiting', {
+            headers: {
+                'Authorization': hashedPassword
+            }
+        })
+            .then(response => {
+                if (response.status === 200) {
+                    password = hashedPassword; // 存储哈希后的密码
+                    localStorage.setItem('commentSystemPassword', password);
+                    document.getElementById('passwordModal').style.display = 'none';
+                    document.getElementById('logoutBtn').style.display = 'block';
+                    loadComments(currentTab);
+                } else {
+                    alert('密码错误，请重试。');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    // 修改window.onload函数
     window.onload = function() {
         password = localStorage.getItem('commentSystemPassword');
         if (password) {
@@ -167,26 +205,7 @@
         document.getElementById('passwordModal').style.display = 'block';
     }
 
-    function checkPassword() {
-        const inputPassword = document.getElementById('passwordInput').value;
-        fetch('/api/v1/comment/status/waiting', {
-            headers: {
-                'Authorization': inputPassword
-            }
-        })
-            .then(response => {
-                if (response.status === 200) {
-                    password = inputPassword;
-                    localStorage.setItem('commentSystemPassword', password);
-                    document.getElementById('passwordModal').style.display = 'none';
-                    document.getElementById('logoutBtn').style.display = 'block';
-                    loadComments(currentTab);
-                } else {
-                    alert('密码错误，请重试。');
-                }
-            })
-            .catch(error => console.error('Error:', error));
-    }
+
 
     function logout() {
         password = '';

@@ -88,6 +88,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function addStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -203,12 +212,12 @@ async function loadComments() {
                 <div class="cmt-header">
                     <strong class="cmt-author">
                         ${comment.website
-                ? `<a href="${comment.website}" target="_blank" rel="noopener noreferrer">${comment.username}</a>`
-                : comment.username}
+                ? `<a href="${escapeHTML(comment.website)}" target="_blank" rel="noopener noreferrer">${escapeHTML(comment.username)}</a>`
+                : `${escapeHTML(comment.username)}`}
                     </strong>
                     <span class="cmt-date">${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}</span>
                 </div>
-                <div class="cmt-content">${comment.content}</div>
+                <div class="cmt-content">${escapeHTML(comment.content)}</div>
             `;
             commentList.appendChild(commentItem);
         });

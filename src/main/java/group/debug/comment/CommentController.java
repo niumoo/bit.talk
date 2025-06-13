@@ -1,10 +1,6 @@
 package group.debug.comment;
 
-import java.util.Base64;
-import java.util.List;
-
 import com.alibaba.fastjson2.JSON;
-
 import group.debug.comment.ProofOfWorkUtils.Challenge;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -14,29 +10,31 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Base64;
+import java.util.List;
 
 @RestController
 @ResponseBody
 @CrossOrigin(origins = {"https://www.wdbyte.com", "https://bing.wdbyte.com", "http://localhost:8000"})
 public class CommentController {
 
-    private Logger log = LoggerFactory.getLogger(CommentController.class);
+    private static Logger log = LoggerFactory.getLogger(CommentController.class);
 
-    @Value("${password}")
+    @Value("#{T(group.debug.comment.CommentController).convertPassword('${password}')}")
     private String password;
 
     private final Pageable limit = Pageable.ofSize(100);
 
-    @Autowired
-    private CommentRepository commentRepository;
+    private final CommentRepository commentRepository;
+
+    public CommentController(CommentRepository commentRepository) {
+        this.commentRepository = commentRepository;
+    }
 
     @GetMapping("/api/v1/pow/generate")
     public ResponseEntity<Challenge> generateChallenge() {
@@ -49,9 +47,22 @@ public class CommentController {
         @RequestHeader("c_random") String random,
         @RequestHeader("c_nonce") String nonce) {
 
-        log.info("create comment:{}", comment);
         if (!ProofOfWorkUtils.getInstance().validate(timestamp, random, nonce)) {
             return new ResponseEntity<>("验证失败", HttpStatus.UNAUTHORIZED);
+        }
+        log.info("create comment:{}", comment);
+        if (StringUtils.hasLength(comment.getWebsite())) {
+            try {
+                URL url = new URL(comment.getWebsite());
+                // 2. 验证协议
+                String protocol = url.getProtocol().toLowerCase();
+                if (!protocol.equals("http") && !protocol.equals("https")) {
+                    return ResponseEntity.badRequest().body("只允许 HTTP 和 HTTPS 协议");
+                }
+                comment.setWebsite("%s://%s".formatted(url.getProtocol(), url.getHost()));
+            } catch (MalformedURLException e) {
+                return ResponseEntity.badRequest().body("URL 格式不正确！");
+            }
         }
         commentRepository.save(comment);
         return ResponseEntity.ok("评论创建成功！");
@@ -102,5 +113,14 @@ public class CommentController {
             comment.setStatus(status);
             commentRepository.save(comment);
         });
+    }
+
+    public static String convertPassword(String pwd) {
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 100000; i++) {
+            pwd = ProofOfWorkUtils.sha256(pwd);
+        }
+        log.info("password:{},cost:{}ms", pwd, System.currentTimeMillis() - start);
+        return pwd;
     }
 }
