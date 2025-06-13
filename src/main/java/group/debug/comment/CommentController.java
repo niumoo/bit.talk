@@ -5,8 +5,6 @@ import group.debug.comment.ProofOfWorkUtils.Challenge;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,15 +23,17 @@ public class CommentController {
 
     private static Logger log = LoggerFactory.getLogger(CommentController.class);
 
-    @Value("#{T(group.debug.comment.CommentController).convertPassword('${password}')}")
-    private String password;
-
     private final Pageable limit = Pageable.ofSize(100);
+
+    record PageResult(Long total, List<Comment> data) { }
 
     private final CommentRepository commentRepository;
 
-    public CommentController(CommentRepository commentRepository) {
+    private final AuthUtils authUtils;
+
+    public CommentController(CommentRepository commentRepository,AuthUtils authUtils) {
         this.commentRepository = commentRepository;
+        this.authUtils = authUtils;
     }
 
     @GetMapping("/api/v1/pow/generate")
@@ -69,7 +69,7 @@ public class CommentController {
     }
 
     @GetMapping("/api/v1/comment/{url}")
-    public ResponseEntity<List<Comment>> findById(@PathVariable String url) {
+    public ResponseEntity<List<Comment>> findByUrl(@PathVariable String url) {
         log.info("find comment by url:{}", url);
         String decodedUrl = new String(Base64.getDecoder().decode(url));
         List<Comment> comments = commentRepository.findByUrlAndStatusOrderByIdDesc(decodedUrl, CommentStatus.PASSED, limit);
@@ -82,20 +82,23 @@ public class CommentController {
 
     @GetMapping("/api/v1/comment/status/{status}")
     public ResponseEntity<String> findByStatus(@PathVariable String status, @RequestHeader("Authorization") String auth) {
-        if (!isAuthorized(auth)) {
+        if (!authUtils.checkAuth(auth)) {
             return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
         }
         log.info("find comment by status:{}", status);
         CommentStatus commentStatus = CommentStatus.valueOf(status.toUpperCase());
+        Long total = commentRepository.countByStatus(commentStatus);
         List<Comment> comments = commentRepository.findByStatusOrderByIdDesc(commentStatus, limit);
-        return ResponseEntity.ok(JSON.toJSONString(comments));
+        PageResult pageResult = new PageResult(total, comments);
+        return ResponseEntity.ok(JSON.toJSONString(pageResult));
     }
+
 
     @PostMapping("/api/v1/comment/{id}/{action}")
     public ResponseEntity<String> updateCommentStatus(@PathVariable Long id,
         @PathVariable String action,
         @RequestHeader("Authorization") String auth) {
-        if (!isAuthorized(auth)) {
+        if (!authUtils.checkAuth(auth)) {
             return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
         }
         log.info("{} comment by id:{}", action, id);
@@ -104,23 +107,10 @@ public class CommentController {
         return ResponseEntity.ok("success");
     }
 
-    private boolean isAuthorized(String auth) {
-        return password.equals(auth);
-    }
-
     private void updateCommentStatus(Long id, CommentStatus status) {
         commentRepository.findById(id).ifPresent(comment -> {
             comment.setStatus(status);
             commentRepository.save(comment);
         });
-    }
-
-    public static String convertPassword(String pwd) {
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 100000; i++) {
-            pwd = ProofOfWorkUtils.sha256(pwd);
-        }
-        log.info("password:{},cost:{}ms", pwd, System.currentTimeMillis() - start);
-        return pwd;
     }
 }

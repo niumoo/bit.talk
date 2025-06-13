@@ -230,7 +230,7 @@
         })
             .then(response => response.json())
             .then(data => {
-                comments = data;
+                comments = data.data;
                 displayComments();
             })
             .catch(error => console.error('Error:', error));
