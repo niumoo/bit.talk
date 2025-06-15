@@ -12,12 +12,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuthUtils {
 
-    private static Logger log = LoggerFactory.getLogger(AuthUtils.class);
+    private static final Logger log = LoggerFactory.getLogger(AuthUtils.class);
 
     @Value("#{T(group.debug.comment.AuthUtils).convertPassword('${password}')}")
     private String password;
 
-    public static String convertPassword(String pwd) {
+    private static String convertPassword(String pwd) {
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100000; i++) {
             pwd = ProofOfWorkUtils.sha256(pwd);
