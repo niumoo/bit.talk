@@ -5,29 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>评论管理系统</title>
     <style>
+        /* 确保html和body占据整个视口高度，并移除默认边距和内边距 */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 防止body滚动条 */
+        }
+
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
+            background-color: #f5f5f5; /* 页面背景色 */
             color: #333;
+            display: flex; /* 使body成为flex容器，用于填充整个屏幕 */
+            flex-direction: column; /* 如果有header/footer等需要垂直布局，这里可以设置 */
         }
+
         .container {
-            display: flex;
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: #fff;
+            display: none; /* 默认隐藏主内容区，只在登录成功后显示 */
+            width: 100%;
+            flex-grow: 1; /* 让container占据body的剩余空间，使其高度填充屏幕 */
+            background-color: #fff; /* 容器背景色 */
+            box-sizing: border-box; /* 确保padding不增加总宽度 */
         }
+
+        /* 当.container被JavaScript设置为display:flex时，应用以下样式 */
+        .container.visible {
+            display: flex;
+        }
+
         .sidebar {
             min-width: 150px;
             padding: 20px;
             background-color: #f0f0f0;
+            display: flex; /* 使侧边栏成为flex容器 */
+            flex-direction: column; /* 垂直排列其子元素 */
+            justify-content: flex-start; /* 从顶部开始排列 */
         }
+
         .main-content {
             flex-grow: 1;
             padding: 20px;
+            overflow-y: auto; /* 当内容超出时，只在主内容区显示滚动条 */
+            box-sizing: border-box; /* 确保padding不增加总宽度/高度 */
         }
+
         h1 {
             font-size: 24px;
             margin-bottom: 20px;
@@ -80,35 +103,44 @@
         button:hover {
             background-color: #e0e0e0;
         }
+        /* 模态框始终覆盖整个屏幕，默认隐藏，由JS控制显示 */
         #passwordModal {
-            display: none;
+            display: none; /* 默认隐藏，由JS控制 */
             position: fixed;
-            z-index: 1;
+            z-index: 1000; /* 确保在最上层 */
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0,0,0,0.4); /* 半透明背景，恢复简洁的透明度 */
+            display: flex; /* 使模态框内容居中 */
+            align-items: center; /* 垂直居中 */
+            justify-content: center; /* 水平居中 */
         }
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 300px;
+            padding: 20px; /* 恢复原始内边距 */
+            border: 1px solid #888; /* 恢复原始边框 */
+            width: 300px; /* 恢复原始宽度 */
             text-align: center;
         }
         #passwordInput {
-            margin: 10px 0;
-            padding: 5px;
+            margin: 10px 0; /* 恢复原始垂直间距 */
+            padding: 5px; /* 恢复原始内边距 */
             width: 90%;
+            border: 1px solid #ddd; /* 保持与页面其他元素一致的边框样式 */
+            box-sizing: border-box;
         }
+
+        /* 退出登录按钮样式调整 */
         #logoutBtn {
-            margin-top: 20px;
+            margin-top: auto; /* 使用flexbox的margin-top: auto; 将按钮推到底部 */
+            align-self: flex-start; /* 保持按钮左对齐 */
         }
         .tabs {
             display: flex;
             flex-direction: column;
+            margin-bottom: 20px; /* 增加与退出登录按钮上方的间距，如果需要 */
         }
         .tab {
             padding: 10px;
@@ -152,15 +184,14 @@
     <div class="sidebar">
         <h1>评论管理</h1>
         <div class="tabs">
-            <button class="tab active" onclick="changeTab('waiting')">待审核</button>
-            <button class="tab" onclick="changeTab('passed')">已通过</button>
-            <button class="tab" onclick="changeTab('rejected')">已拒绝</button>
+            <button class="tab active" data-tab="waiting">待审核</button>
+            <button class="tab" data-tab="passed">已通过</button>
+            <button class="tab" data-tab="rejected">已拒绝</button>
         </div>
-        <button id="logoutBtn" onclick="logout()" style="display: none;">退出登录</button>
+        <button id="logoutBtn" style="display: none;">退出登录</button>
     </div>
     <div class="main-content">
         <div id="commentList"></div>
-        <!-- 分页控件容器 -->
         <div id="pagination-controls" class="pagination"></div>
     </div>
 </div>
@@ -169,125 +200,172 @@
     <div class="modal-content">
         <h2>请输入密码</h2>
         <input type="password" id="passwordInput">
-        <button onclick="checkPassword()">确认</button>
+        <button id="checkPasswordBtn">确认</button>
     </div>
 </div>
 
 <script>
-    let password = '';
-    let comments = [];
-    let currentTab = 'waiting';
-    // 新增分页相关变量
-    let currentPage = 1; // 当前页码，从1开始
-    const pageSize = 5; // 每页显示的评论数量
-    let totalComments = 0; // 总评论数
+    (function() { // IIFE for encapsulation
+        // --- Constants ---
+        const API_BASE_URL = '/api/v1/comment';
+        const PASSWORD_STORAGE_KEY = 'commentSystemPassword';
+        const PAGE_SIZE = 5;
+        const PASSWORD_HASH_ITERATIONS = 100000; // Do not change as per functional requirements
 
-    // 添加SHA256哈希函数
-    async function sha256(message) {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
+        // --- Global Variables (within IIFE scope) ---
+        let password = '';
+        let comments = [];
+        let currentTab = 'waiting';
+        let currentPage = 1;
+        let totalComments = 0;
 
-    // 修改checkPassword函数
-    async function checkPassword() {
-        const inputPassword = document.getElementById('passwordInput').value;
-        let hashedPassword = inputPassword;
+        // --- Cached DOM Elements ---
+        const DOMElements = {};
 
-        // 进行10万次SHA256哈希 (原代码是20万次，这里为了前端演示速度，减少次数，实际应用中可以根据需要调整)
-        for (let i = 0; i < 100000; i++) {
-            hashedPassword = await sha256(hashedPassword);
+        function cacheDOMElements() {
+            DOMElements.passwordModal = document.getElementById('passwordModal');
+            DOMElements.passwordInput = document.getElementById('passwordInput');
+            DOMElements.checkPasswordBtn = document.getElementById('checkPasswordBtn');
+            DOMElements.container = document.querySelector('.container');
+            DOMElements.logoutBtn = document.getElementById('logoutBtn');
+            DOMElements.commentList = document.getElementById('commentList');
+            DOMElements.paginationControls = document.getElementById('pagination-controls');
+            DOMElements.tabsContainer = document.querySelector('.tabs');
         }
 
-        fetch('/api/v1/comment/status/waiting', { // 首次登录检查，用任意一个状态即可
-            headers: {
-                'Authorization': hashedPassword
+        // --- Utility Functions ---
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getStatusText(status) {
+            switch(status) {
+                case 'WAITING': return '待审核';
+                case 'PASSED': return '已通过';
+                case 'REJECTED': return '已拒绝';
+                default: return status;
             }
-        })
-            .then(response => {
-                if (response.status === 200) {
-                    password = hashedPassword; // 存储哈希后的密码
-                    localStorage.setItem('commentSystemPassword', password);
-                    document.getElementById('passwordModal').style.display = 'none';
-                    document.getElementById('logoutBtn').style.display = 'block';
-                    loadComments(currentTab, currentPage); // 登录成功后加载评论
-                } else {
+        }
+
+        function getActionButtons(comment) {
+            if (comment.status === 'WAITING') {
+                // Use data attributes for event delegation
+                return `
+                    <button data-id="${comment.id}" data-action="passed">通过</button>
+                    <button data-id="${comment.id}" data-action="rejected">拒绝</button>
+                `;
+            } else if (comment.status === 'REJECTED') {
+                return `<button data-id="${comment.id}" data-action="deleted">删除</button>`;
+            }
+            return '';
+        }
+
+        // --- Core Logic Functions ---
+        async function checkPassword() {
+            const inputPassword = DOMElements.passwordInput.value;
+            if (!inputPassword) {
+                alert('请输入密码！');
+                return;
+            }
+
+            let hashedPassword = inputPassword;
+            // This is a deliberate security feature (key stretching), keep as is.
+            for (let i = 0; i < PASSWORD_HASH_ITERATIONS; i++) {
+                hashedPassword = await sha256(hashedPassword);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/status/waiting`, {
+                    headers: {
+                        'Authorization': hashedPassword
+                    }
+                });
+
+                if (response.ok) { // Check for status 200-299
+                    password = hashedPassword;
+                    localStorage.setItem(PASSWORD_STORAGE_KEY, password);
+                    DOMElements.passwordModal.style.display = 'none';
+                    DOMElements.container.classList.add('visible');
+                    DOMElements.logoutBtn.style.display = 'block';
+                    await loadComments(currentTab, currentPage);
+                } else if (response.status === 401) {
                     alert('密码错误，请重试。');
+                    DOMElements.passwordInput.value = ''; // Clear input on error
+                } else {
+                    // Handle other potential errors like 500, 404, etc.
+                    alert(`认证失败，状态码: ${response.status} ${response.statusText || ''}`);
+                    console.error('Password check failed:', response.status, response.statusText);
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
+            } catch (error) {
+                console.error('Error during password check:', error);
                 alert('网络错误或服务器无响应，请稍后再试。');
-            });
-    }
-
-    // 修改window.onload函数
-    window.onload = function() {
-        password = localStorage.getItem('commentSystemPassword');
-        if (password) {
-            loadComments(currentTab, currentPage); // 存在密码直接加载评论
-            document.getElementById('logoutBtn').style.display = 'block';
-        } else {
-            showPasswordModal(); // 否则显示密码输入框
-        }
-    };
-
-    function showPasswordModal() {
-        document.getElementById('passwordModal').style.display = 'block';
-        document.getElementById('passwordInput').value = ''; // 清空密码输入框
-        document.getElementById('passwordInput').focus(); // 聚焦输入框
-    }
-
-    function logout() {
-        password = '';
-        localStorage.removeItem('commentSystemPassword');
-        document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('commentList').innerHTML = '';
-        document.getElementById('pagination-controls').innerHTML = ''; // 清空分页
-        showPasswordModal();
-    }
-
-    function changeTab(tab) {
-        currentTab = tab;
-        currentPage = 1; // 切换Tab时重置到第一页
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelector(`.tab:nth-child(${['waiting', 'passed', 'rejected'].indexOf(tab) + 1})`).classList.add('active');
-        loadComments(tab, currentPage);
-    }
-
-    // 修改 loadComments 函数，增加 page 参数
-    function loadComments(status, page) {
-        fetch(`/api/v1/comment/status/${status}?page=${page}&pageSize=${pageSize}`, {
-            headers: {
-                'Authorization': password
             }
-        })
-            .then(response => {
-                if (response.status === 401) { // 未授权，可能是密码失效或过期
-                    alert('认证失败，请重新登录。');
-                    logout(); // 强制退出并重新登录
-                    return Promise.reject('Unauthorized');
-                }
-                return response.json();
-            })
-            .then(data => {
-                comments = data.data; // 当前页的评论数据
-                totalComments = data.total; // 总评论数
-                displayComments(); // 显示评论
-                renderPaginationControls(); // 渲染分页控件
-            })
-            .catch(error => console.error('Error:', error));
-    }
-
-    function displayComments() {
-        const commentListEl = document.getElementById('commentList');
-        if (comments.length === 0) {
-            commentListEl.innerHTML = '<p>暂无评论。</p>';
-            return;
         }
 
-        const commentList = comments.map(comment => `
+        function logout() {
+            password = '';
+            localStorage.removeItem(PASSWORD_STORAGE_KEY);
+            DOMElements.logoutBtn.style.display = 'none';
+            DOMElements.commentList.innerHTML = ''; // Clear comment list
+            DOMElements.paginationControls.innerHTML = ''; // Clear pagination
+            DOMElements.container.classList.remove('visible'); // Hide main content
+            DOMElements.passwordModal.style.display = 'flex'; // Show login modal
+            DOMElements.passwordInput.value = ''; // Clear password input
+            DOMElements.passwordInput.focus(); // Focus input
+        }
+
+        function changeTab(tab) {
+            if (currentTab === tab) return; // Prevent unnecessary reloads
+            currentTab = tab;
+            currentPage = 1;
+
+            // Update active tab styling
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+
+            loadComments(tab, currentPage);
+        }
+
+        async function loadComments(status, page) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/status/${status}?page=${page}&pageSize=${PAGE_SIZE}`, {
+                    headers: {
+                        'Authorization': password
+                    }
+                });
+
+                if (response.status === 401) {
+                    alert('认证失败，请重新登录。');
+                    logout();
+                    return; // Stop further execution
+                }
+                if (!response.ok) {
+                    alert(`加载评论失败：${response.status} ${response.statusText || ''}`);
+                    console.error('Failed to load comments:', response.status, response.statusText);
+                    return;
+                }
+
+                const data = await response.json();
+                comments = data.data;
+                totalComments = data.total;
+                displayComments();
+                renderPaginationControls();
+            } catch (error) {
+                console.error('Error loading comments:', error);
+                alert('加载评论时发生网络错误或服务器无响应。');
+            }
+        }
+
+        function displayComments() {
+            if (comments.length === 0) {
+                DOMElements.commentList.innerHTML = '<p style="text-align: center; margin-top: 50px;">暂无评论。</p>';
+                return;
+            }
+
+            const commentHtml = comments.map(comment => `
                 <div class="comment-card">
                     <div class="comment-header">
                         <span class="comment-title">${comment.title}</span>
@@ -306,135 +384,192 @@
                     </div>
                 </div>
             `).join('');
-        commentListEl.innerHTML = commentList;
-    }
-
-    function getStatusText(status) {
-        switch(status) {
-            case 'WAITING': return '待审核';
-            case 'PASSED': return '已通过';
-            case 'REJECTED': return '已拒绝';
-            default: return status;
+            DOMElements.commentList.innerHTML = commentHtml;
         }
-    }
 
-    function getActionButtons(comment) {
-        if (comment.status === 'WAITING') {
-            return `
-                    <button onclick="updateCommentStatus(${comment.id}, 'passed')">通过</button>
-                    <button onclick="updateCommentStatus(${comment.id}, 'rejected')">拒绝</button>
-                `;
-        } else if (comment.status === 'REJECTED') {
-            // 注意：删除操作可能需要确认弹窗
-            return `<button onclick="deleteComment(${comment.id})">删除</button>`;
-        }
-        return '';
-    }
+        async function updateCommentStatus(id, status) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}/${status}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': password
+                    }
+                });
 
-    function updateCommentStatus(id, status) {
-        fetch(`/api/v1/comment/${id}/${status}`, {
-            method: 'POST',
-            headers: {
-                'Authorization': password
-            }
-        })
-            .then(response => {
                 if (response.ok) {
-                    loadComments(currentTab, currentPage); // 操作成功后重新加载当前页
+                    loadComments(currentTab, currentPage);
                 } else if (response.status === 401) {
                     alert('认证失败，请重新登录。');
                     logout();
                 } else {
-                    alert('操作失败，请重试。');
+                    alert(`操作失败：${response.status} ${response.statusText || ''}`);
+                    console.error('Failed to update comment status:', response.status, response.statusText);
                 }
-            })
-            .catch(error => console.error('Error:', error));
-    }
-
-    function deleteComment(id) {
-        if (!confirm('确定要删除这条评论吗？此操作不可撤销！')) {
-            return; // 用户取消删除
-        }
-        fetch(`/api/v1/comment/${id}/deleted`, {
-            method: 'POST',
-            headers: {
-                'Authorization': password
+            } catch (error) {
+                console.error('Error updating comment status:', error);
+                alert('更新评论状态时发生网络错误或服务器无响应。');
             }
-        })
-            .then(response => {
+        }
+
+        async function deleteComment(id) {
+            if (!confirm('确定要删除这条评论吗？此操作不可撤销！')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}/deleted`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': password
+                    }
+                });
+
                 if (response.ok) {
-                    // 删除成功后，检查当前页是否还有评论，如果没有则跳到上一页
-                    if (comments.length === 1 && currentPage > 1) { // 假设当前页只剩这一条被删除了
+                    // If the last comment on the current page is deleted and it's not the first page,
+                    // decrement the page number to avoid empty pages.
+                    if (comments.length === 1 && currentPage > 1) {
                         currentPage--;
                     }
-                    loadComments(currentTab, currentPage); // 重新加载当前页或调整后的页
+                    loadComments(currentTab, currentPage);
                 } else if (response.status === 401) {
                     alert('认证失败，请重新登录。');
                     logout();
                 } else {
-                    alert('删除失败，请重试。');
+                    alert(`删除失败：${response.status} ${response.statusText || ''}`);
+                    console.error('Failed to delete comment:', response.status, response.statusText);
                 }
-            })
-            .catch(error => console.error('Error:', error));
-    }
-
-    // 新增分页渲染函数
-    function renderPaginationControls() {
-        const paginationContainer = document.getElementById('pagination-controls');
-        const totalPages = Math.ceil(totalComments / pageSize);
-        let paginationHtml = '';
-
-        if (totalPages <= 1) { // 如果总页数小于等于1，则不显示分页
-            paginationContainer.innerHTML = '';
-            return;
-        }
-
-        // 上一页按钮
-        paginationHtml += `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`;
-
-        // 页码按钮 (简单实现，显示所有页码)
-        // 实际应用中可能需要更复杂的逻辑，例如只显示当前页前后几页
-        const maxPagesToShow = 5; // 最多显示5个页码
-        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
-        if (endPage - startPage + 1 < maxPagesToShow) { // 如果显示数量不足maxPagesToShow，则向左扩展
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
-        }
-
-        if (startPage > 1) {
-            paginationHtml += `<button onclick="goToPage(1)">1</button>`;
-            if (startPage > 2) {
-                paginationHtml += `<span>...</span>`;
+            } catch (error) {
+                console.error('Error deleting comment:', error);
+                alert('删除评论时发生网络错误或服务器无响应。');
             }
         }
 
-        for (let i = startPage; i <= endPage; i++) {
-            paginationHtml += `<button onclick="goToPage(${i})" class="${i === currentPage ? 'active-page' : ''}">${i}</button>`;
-        }
+        function renderPaginationControls() {
+            const totalPages = Math.ceil(totalComments / PAGE_SIZE);
+            let paginationHtml = '';
 
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                paginationHtml += `<span>...</span>`;
+            if (totalPages <= 1) {
+                DOMElements.paginationControls.innerHTML = '';
+                return;
             }
-            paginationHtml += `<button onclick="goToPage(${totalPages})">${totalPages}</button>`;
+
+            // Previous page button
+            paginationHtml += `<button data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`;
+
+            const maxPagesToShow = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+            // Adjust startPage if not enough pages after current to fill maxPagesToShow
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+            }
+
+            // Render first page and ellipsis if needed
+            if (startPage > 1) {
+                paginationHtml += `<button data-page="1">1</button>`;
+                if (startPage > 2) {
+                    paginationHtml += `<span>...</span>`;
+                }
+            }
+
+            // Render page numbers
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHtml += `<button data-page="${i}" class="${i === currentPage ? 'active-page' : ''}">${i}</button>`;
+            }
+
+            // Render last page and ellipsis if needed
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += `<span>...</span>`;
+                }
+                paginationHtml += `<button data-page="${totalPages}">${totalPages}</button>`;
+            }
+
+            // Next page button
+            paginationHtml += `<button data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
+
+            DOMElements.paginationControls.innerHTML = paginationHtml;
         }
 
-
-        // 下一页按钮
-        paginationHtml += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
-
-        paginationContainer.innerHTML = paginationHtml;
-    }
-
-    // 新增跳转页码函数
-    function goToPage(page) {
-        if (page < 1 || page > Math.ceil(totalComments / pageSize)) {
-            return; // 防止越界
+        function goToPage(page) {
+            // Basic validation
+            if (page < 1 || page > Math.ceil(totalComments / PAGE_SIZE)) {
+                return;
+            }
+            currentPage = page;
+            loadComments(currentTab, currentPage);
         }
-        currentPage = page;
-        loadComments(currentTab, currentPage);
-    }
+
+        // --- Event Listeners Setup ---
+        function setupEventListeners() {
+            DOMElements.checkPasswordBtn.addEventListener('click', checkPassword);
+            DOMElements.logoutBtn.addEventListener('click', logout);
+
+            // Event delegation for tabs
+            DOMElements.tabsContainer.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.classList.contains('tab')) {
+                    const tabName = target.dataset.tab;
+                    if (tabName) {
+                        changeTab(tabName);
+                    }
+                }
+            });
+
+            // Event delegation for comment action buttons (Pass/Reject/Delete)
+            DOMElements.commentList.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.tagName === 'BUTTON') {
+                    const commentId = parseInt(target.dataset.id);
+                    const action = target.dataset.action;
+
+                    if (isNaN(commentId)) return; // Ensure ID is a number
+
+                    if (action === 'passed' || action === 'rejected') {
+                        updateCommentStatus(commentId, action);
+                    } else if (action === 'deleted') {
+                        deleteComment(commentId);
+                    }
+                }
+            });
+
+            // Event delegation for pagination buttons
+            DOMElements.paginationControls.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.tagName === 'BUTTON') {
+                    const page = parseInt(target.dataset.page);
+                    if (!isNaN(page)) {
+                        goToPage(page);
+                    }
+                }
+            });
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            cacheDOMElements(); // Cache DOM elements once
+            setupEventListeners(); // Setup all event listeners
+            initApp(); // Run the initial app logic
+        });
+
+        function initApp() {
+            password = localStorage.getItem(PASSWORD_STORAGE_KEY);
+            if (password) {
+                // If password exists in localStorage, assume logged in
+                DOMElements.passwordModal.style.display = 'none';
+                DOMElements.container.classList.add('visible');
+                DOMElements.logoutBtn.style.display = 'block';
+                loadComments(currentTab, currentPage);
+            } else {
+                // If not logged in, show password modal
+                DOMElements.passwordModal.style.display = 'flex';
+                DOMElements.container.classList.remove('visible'); // Ensure main content is hidden
+                DOMElements.passwordInput.focus(); // Focus input field
+            }
+        }
+
+    })(); // End of IIFE
 </script>
 </body>
 </html>
