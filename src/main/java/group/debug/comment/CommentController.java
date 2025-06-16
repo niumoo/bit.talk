@@ -39,11 +39,19 @@ public class CommentController {
         return ResponseEntity.ok(ProofOfWorkUtils.getInstance().generateChallenge());
     }
 
+    /**
+     * 创建评论
+     * @param comment
+     * @param timestamp
+     * @param random
+     * @param nonce
+     * @return
+     */
     @PostMapping("/api/v1/comment")
     public ResponseEntity<String> createComment(@RequestBody @Valid Comment comment,
-        @RequestHeader("c_timestamp") String timestamp,
-        @RequestHeader("c_random") String random,
-        @RequestHeader("c_nonce") String nonce) {
+        @RequestHeader("c-timestamp") String timestamp,
+        @RequestHeader("c-random") String random,
+        @RequestHeader("c-nonce") String nonce) {
 
         if (!ProofOfWorkUtils.getInstance().validate(timestamp, random, nonce)) {
             return new ResponseEntity<>("验证失败", HttpStatus.UNAUTHORIZED);
@@ -66,14 +74,24 @@ public class CommentController {
         return ResponseEntity.ok("评论创建成功！");
     }
 
-    @GetMapping("/api/v1/comment/{url}")
-    public ResponseEntity<List<Comment>> findByUrl(@PathVariable String url,
-                                                   @RequestParam(defaultValue = "1") Integer page,
-                                                   @RequestParam(defaultValue = "20") Integer pageSize) {
-        log.info("find comment by url:{}", url);
-        String decodedUrl = new String(Base64.getDecoder().decode(url));
+    /**
+     * 加载当前页面的评论列表
+     *
+     * @param appId
+     * @param pageId
+     * @param page
+     * @param pageSize
+     * @return
+     */
+    @GetMapping("/api/v1/comment/{appId}/{pageId}/list")
+    public ResponseEntity<List<Comment>> findByAppidAndPageId(@PathVariable String appId,
+                                                              @PathVariable String pageId,
+                                                              @RequestParam(defaultValue = "1") Integer page,
+                                                              @RequestParam(defaultValue = "20") Integer pageSize) {
+        log.info("find comment by app id:{}, page id:{}", appId,pageId);
+        String decodedPageId = new String(Base64.getDecoder().decode(pageId));
         PageRequest pageRequest = PageRequest.of(page - 1, pageSize);
-        List<Comment> comments = commentRepository.findByUrlAndStatusOrderByIdDesc(decodedUrl, CommentStatus.PASSED, pageRequest);
+        List<Comment> comments = commentRepository.findByAppIdAndPageIdAndStatusOrderByIdDesc(appId, decodedPageId, CommentStatus.PASSED, pageRequest);
         comments.forEach(comment -> {
             comment.setEmail(null);
             comment.setStatus(null);

@@ -19,7 +19,7 @@ import jakarta.validation.constraints.Size;
 @Entity
 @Table(name = "comment", indexes = {
     @Index(name = "idx_id", columnList = "id"),
-    @Index(name = "idx_url", columnList = "url")
+    @Index(name = "idx_page_id", columnList = "page_id")
 })
 public class Comment {
 
@@ -28,10 +28,15 @@ public class Comment {
     @Column(name = "id", nullable = false, updatable = false)
     private Long id;
 
-    @NotBlank(message = "URL 不能为空")
-    @Size(min = 3, max = 512, message = "URL 长度应在 3～512 个字符")
-    @Column(name = "url", nullable = false, length = 512)
-    private String url;
+    @NotBlank(message = "APP ID 不能为空")
+    @Size(min = 32, max = 32, message = "APP ID 不正确")
+    @Column(name = "app_id", nullable = false, length = 32)
+    private String appId;
+
+    @NotBlank(message = "Page ID 不能为空")
+    @Size(min = 1, max = 512, message = "Page Id 长度应在 3～512 个字符")
+    @Column(name = "page_id", nullable = false, length = 512)
+    private String pageId;
 
     @NotBlank(message = "Title 不能为空")
     @Size(min = 3, max = 512, message = "标题长度应在 3～512 个字符")
@@ -79,12 +84,20 @@ public class Comment {
         this.id = id;
     }
 
-    public String getUrl() {
-        return url;
+    public String getAppId() {
+        return appId;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
+    public void setAppId(String appId) {
+        this.appId = appId;
+    }
+
+    public String getPageId() {
+        return pageId;
+    }
+
+    public void setPageId(String pageId) {
+        this.pageId = pageId;
     }
 
     public Long getParentId() {
