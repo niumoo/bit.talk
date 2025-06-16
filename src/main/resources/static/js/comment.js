@@ -174,9 +174,9 @@ function addStyles() {
         }
 
         .cmt-form button {
-            padding: 8px 18px;
-            background-color: #007bff; /* A more vibrant blue */
-            color: white;
+            padding: 6px 18px;
+            background-color: #ededed;
+            color: black;
             border: none;
             border-radius: 4px;
             cursor: pointer;
@@ -184,7 +184,7 @@ function addStyles() {
         }
 
         .cmt-form button:hover {
-            background-color: #0056b3;
+            background-color: #dfdcdc;
         }
 
         .cmt-form button:disabled {
@@ -218,7 +218,7 @@ function addStyles() {
         }
 
         .cmt-author a {
-            color: #007bff;
+            color: #404040;
             text-decoration: none;
         }
 
@@ -295,7 +295,7 @@ async function loadComments() {
                 <div class="cmt-header">
                     <strong class="cmt-author">
                         ${comment.website
-                ? `<a href="${escapeHTML(comment.website)}" target="_blank" rel="noopener noreferrer">${escapeHTML(comment.username)}</a>`
+                ? `<a href="${escapeHTML(comment.website)}" target="_blank" rel="noopener noreferrer">${escapeHTML(comment.username)} 🔗</a>`
                 : `${escapeHTML(comment.username)}`}
                     </strong>
                     <span class="cmt-date">${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}</span>
