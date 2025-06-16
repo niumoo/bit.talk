@@ -16,14 +16,17 @@ class Comment {
 document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("bit-talk");
     if (!container) return;
-
     // 添加样式
     addStyles();
-
     // 初始化页面结构
+    // 标题评论
+    const title = document.createElement("h3");
+    title.style.margin = "5px 0";
+    title.innerText = "评论";
     const form = createCommentForm();
     const commentList = document.createElement("div");
     commentList.id = "cmt-list";
+    container.appendChild(title);
     container.appendChild(form);
     container.appendChild(commentList);
 
@@ -101,7 +104,7 @@ function addStyles() {
     const style = document.createElement('style');
     style.textContent = `
         #bit-talk {
-            max-width: 700px;
+            max-width: 800px;
             margin: 0 auto;
             padding: 20px;
             font-size: 16px;
@@ -135,12 +138,11 @@ function addStyles() {
         }
 
         .cmt-form button {
-            padding: 8px 20px;
+            padding: 8px 18px;
             background-color: #e1e1e1;
-            color: #212121;
+            color: black;
             border: none;
             border-radius: 4px;
-            cursor: pointer;
         }
 
         .cmt-form button:hover {
@@ -184,7 +186,7 @@ function createCommentForm() {
     form.className = "cmt-form";
     form.innerHTML = `
         <input type="text" name="username" required placeholder="昵称" oninvalid="this.setCustomValidity('请输入昵称')" oninput="this.setCustomValidity('')">
-        <input type="email" name="email" required placeholder="邮箱" oninvalid="this.setCustomValidity('请输入正确的邮箱格式')" oninput="this.setCustomValidity('')">
+        <input type="email" name="email" required placeholder="邮箱（不会展示）" oninvalid="this.setCustomValidity('请输入正确的邮箱格式')" oninput="this.setCustomValidity('')">
         <input type="url" name="website" placeholder="网址（可选）">
         <textarea name="content" required placeholder="评论内容" oninvalid="this.setCustomValidity('请输入内容')" oninput="this.setCustomValidity('')" style="font-size: 1em"></textarea>
         <button type="submit" id="cmt-send">发送</button>

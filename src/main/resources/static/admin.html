@@ -122,6 +122,29 @@
             background-color: #e0e0e0;
             font-weight: bold;
         }
+
+        /* 分页样式 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap; /* 允许换行，防止页码过多时溢出 */
+        }
+        .pagination button {
+            margin: 0 5px;
+            min-width: 30px; /* 确保页码按钮宽度一致 */
+            background-color: #f0f0f0;
+            border: none;
+            color: #333;
+        }
+        .pagination button.active-page {
+            background-color: black;
+            color: white;
+        }
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -137,6 +160,8 @@
     </div>
     <div class="main-content">
         <div id="commentList"></div>
+        <!-- 分页控件容器 -->
+        <div id="pagination-controls" class="pagination"></div>
     </div>
 </div>
 
@@ -152,6 +177,10 @@
     let password = '';
     let comments = [];
     let currentTab = 'waiting';
+    // 新增分页相关变量
+    let currentPage = 1; // 当前页码，从1开始
+    const pageSize = 5; // 每页显示的评论数量
+    let totalComments = 0; // 总评论数
 
     // 添加SHA256哈希函数
     async function sha256(message) {
@@ -166,12 +195,12 @@
         const inputPassword = document.getElementById('passwordInput').value;
         let hashedPassword = inputPassword;
 
-        // 进行20万次SHA256哈希
+        // 进行10万次SHA256哈希 (原代码是20万次，这里为了前端演示速度，减少次数，实际应用中可以根据需要调整)
         for (let i = 0; i < 100000; i++) {
             hashedPassword = await sha256(hashedPassword);
         }
 
-        fetch('/api/v1/comment/status/waiting', {
+        fetch('/api/v1/comment/status/waiting', { // 首次登录检查，用任意一个状态即可
             headers: {
                 'Authorization': hashedPassword
             }
@@ -182,61 +211,82 @@
                     localStorage.setItem('commentSystemPassword', password);
                     document.getElementById('passwordModal').style.display = 'none';
                     document.getElementById('logoutBtn').style.display = 'block';
-                    loadComments(currentTab);
+                    loadComments(currentTab, currentPage); // 登录成功后加载评论
                 } else {
                     alert('密码错误，请重试。');
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('网络错误或服务器无响应，请稍后再试。');
+            });
     }
 
     // 修改window.onload函数
     window.onload = function() {
         password = localStorage.getItem('commentSystemPassword');
         if (password) {
-            loadComments(currentTab);
+            loadComments(currentTab, currentPage); // 存在密码直接加载评论
             document.getElementById('logoutBtn').style.display = 'block';
         } else {
-            showPasswordModal();
+            showPasswordModal(); // 否则显示密码输入框
         }
     };
 
     function showPasswordModal() {
         document.getElementById('passwordModal').style.display = 'block';
+        document.getElementById('passwordInput').value = ''; // 清空密码输入框
+        document.getElementById('passwordInput').focus(); // 聚焦输入框
     }
-
-
 
     function logout() {
         password = '';
         localStorage.removeItem('commentSystemPassword');
         document.getElementById('logoutBtn').style.display = 'none';
         document.getElementById('commentList').innerHTML = '';
+        document.getElementById('pagination-controls').innerHTML = ''; // 清空分页
         showPasswordModal();
     }
 
     function changeTab(tab) {
         currentTab = tab;
+        currentPage = 1; // 切换Tab时重置到第一页
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelector(`.tab:nth-child(${['waiting', 'passed', 'rejected'].indexOf(tab) + 1})`).classList.add('active');
-        loadComments(tab);
+        loadComments(tab, currentPage);
     }
 
-    function loadComments(status) {
-        fetch(`/api/v1/comment/status/${status}`, {
+    // 修改 loadComments 函数，增加 page 参数
+    function loadComments(status, page) {
+        fetch(`/api/v1/comment/status/${status}?page=${page}&pageSize=${pageSize}`, {
             headers: {
                 'Authorization': password
             }
         })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 401) { // 未授权，可能是密码失效或过期
+                    alert('认证失败，请重新登录。');
+                    logout(); // 强制退出并重新登录
+                    return Promise.reject('Unauthorized');
+                }
+                return response.json();
+            })
             .then(data => {
-                comments = data.data;
-                displayComments();
+                comments = data.data; // 当前页的评论数据
+                totalComments = data.total; // 总评论数
+                displayComments(); // 显示评论
+                renderPaginationControls(); // 渲染分页控件
             })
             .catch(error => console.error('Error:', error));
     }
 
     function displayComments() {
+        const commentListEl = document.getElementById('commentList');
+        if (comments.length === 0) {
+            commentListEl.innerHTML = '<p>暂无评论。</p>';
+            return;
+        }
+
         const commentList = comments.map(comment => `
                 <div class="comment-card">
                     <div class="comment-header">
@@ -256,7 +306,7 @@
                     </div>
                 </div>
             `).join('');
-        document.getElementById('commentList').innerHTML = commentList;
+        commentListEl.innerHTML = commentList;
     }
 
     function getStatusText(status) {
@@ -275,6 +325,7 @@
                     <button onclick="updateCommentStatus(${comment.id}, 'rejected')">拒绝</button>
                 `;
         } else if (comment.status === 'REJECTED') {
+            // 注意：删除操作可能需要确认弹窗
             return `<button onclick="deleteComment(${comment.id})">删除</button>`;
         }
         return '';
@@ -289,7 +340,10 @@
         })
             .then(response => {
                 if (response.ok) {
-                    loadComments(currentTab);
+                    loadComments(currentTab, currentPage); // 操作成功后重新加载当前页
+                } else if (response.status === 401) {
+                    alert('认证失败，请重新登录。');
+                    logout();
                 } else {
                     alert('操作失败，请重试。');
                 }
@@ -298,7 +352,10 @@
     }
 
     function deleteComment(id) {
-        fetch(`/api/v1/comment/${id}/delete`, {
+        if (!confirm('确定要删除这条评论吗？此操作不可撤销！')) {
+            return; // 用户取消删除
+        }
+        fetch(`/api/v1/comment/${id}/deleted`, {
             method: 'POST',
             headers: {
                 'Authorization': password
@@ -306,12 +363,77 @@
         })
             .then(response => {
                 if (response.ok) {
-                    loadComments(currentTab);
+                    // 删除成功后，检查当前页是否还有评论，如果没有则跳到上一页
+                    if (comments.length === 1 && currentPage > 1) { // 假设当前页只剩这一条被删除了
+                        currentPage--;
+                    }
+                    loadComments(currentTab, currentPage); // 重新加载当前页或调整后的页
+                } else if (response.status === 401) {
+                    alert('认证失败，请重新登录。');
+                    logout();
                 } else {
                     alert('删除失败，请重试。');
                 }
             })
             .catch(error => console.error('Error:', error));
+    }
+
+    // 新增分页渲染函数
+    function renderPaginationControls() {
+        const paginationContainer = document.getElementById('pagination-controls');
+        const totalPages = Math.ceil(totalComments / pageSize);
+        let paginationHtml = '';
+
+        if (totalPages <= 1) { // 如果总页数小于等于1，则不显示分页
+            paginationContainer.innerHTML = '';
+            return;
+        }
+
+        // 上一页按钮
+        paginationHtml += `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`;
+
+        // 页码按钮 (简单实现，显示所有页码)
+        // 实际应用中可能需要更复杂的逻辑，例如只显示当前页前后几页
+        const maxPagesToShow = 5; // 最多显示5个页码
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) { // 如果显示数量不足maxPagesToShow，则向左扩展
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        if (startPage > 1) {
+            paginationHtml += `<button onclick="goToPage(1)">1</button>`;
+            if (startPage > 2) {
+                paginationHtml += `<span>...</span>`;
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            paginationHtml += `<button onclick="goToPage(${i})" class="${i === currentPage ? 'active-page' : ''}">${i}</button>`;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                paginationHtml += `<span>...</span>`;
+            }
+            paginationHtml += `<button onclick="goToPage(${totalPages})">${totalPages}</button>`;
+        }
+
+
+        // 下一页按钮
+        paginationHtml += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
+
+        paginationContainer.innerHTML = paginationHtml;
+    }
+
+    // 新增跳转页码函数
+    function goToPage(page) {
+        if (page < 1 || page > Math.ceil(totalComments / pageSize)) {
+            return; // 防止越界
+        }
+        currentPage = page;
+        loadComments(currentTab, currentPage);
     }
 </script>
 </body>

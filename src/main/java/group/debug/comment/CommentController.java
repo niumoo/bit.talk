@@ -5,7 +5,7 @@ import group.debug.comment.ProofOfWorkUtils.Challenge;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -22,8 +22,6 @@ import java.util.List;
 public class CommentController {
 
     private static Logger log = LoggerFactory.getLogger(CommentController.class);
-
-    private final Pageable limit = Pageable.ofSize(100);
 
     record PageResult(Long total, List<Comment> data) { }
 
@@ -69,10 +67,13 @@ public class CommentController {
     }
 
     @GetMapping("/api/v1/comment/{url}")
-    public ResponseEntity<List<Comment>> findByUrl(@PathVariable String url) {
+    public ResponseEntity<List<Comment>> findByUrl(@PathVariable String url,
+                                                   @RequestParam(defaultValue = "1") Integer page,
+                                                   @RequestParam(defaultValue = "20") Integer pageSize) {
         log.info("find comment by url:{}", url);
         String decodedUrl = new String(Base64.getDecoder().decode(url));
-        List<Comment> comments = commentRepository.findByUrlAndStatusOrderByIdDesc(decodedUrl, CommentStatus.PASSED, limit);
+        PageRequest pageRequest = PageRequest.of(page - 1, pageSize);
+        List<Comment> comments = commentRepository.findByUrlAndStatusOrderByIdDesc(decodedUrl, CommentStatus.PASSED, pageRequest);
         comments.forEach(comment -> {
             comment.setEmail(null);
             comment.setStatus(null);
@@ -81,14 +82,18 @@ public class CommentController {
     }
 
     @GetMapping("/api/v1/comment/status/{status}")
-    public ResponseEntity<String> findByStatus(@PathVariable String status, @RequestHeader("Authorization") String auth) {
+    public ResponseEntity<String> findByStatus(@PathVariable String status,
+                                               @RequestParam(defaultValue = "1") Integer page,
+                                               @RequestParam(defaultValue = "5") Integer pageSize,
+                                               @RequestHeader("Authorization") String auth) {
         if (!authUtils.checkAuth(auth)) {
             return new ResponseEntity<>("认证失败", HttpStatus.UNAUTHORIZED);
         }
         log.info("find comment by status:{}", status);
         CommentStatus commentStatus = CommentStatus.valueOf(status.toUpperCase());
         Long total = commentRepository.countByStatus(commentStatus);
-        List<Comment> comments = commentRepository.findByStatusOrderByIdDesc(commentStatus, limit);
+        PageRequest pageRequest = PageRequest.of(page - 1, pageSize);
+        List<Comment> comments = commentRepository.findByStatusOrderByIdDesc(commentStatus, pageRequest);
         PageResult pageResult = new PageResult(total, comments);
         return ResponseEntity.ok(JSON.toJSONString(pageResult));
     }

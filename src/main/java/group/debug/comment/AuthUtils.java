@@ -17,7 +17,7 @@ public class AuthUtils {
     @Value("#{T(group.debug.comment.AuthUtils).convertPassword('${password}')}")
     private String password;
 
-    private static String convertPassword(String pwd) {
+    public static String convertPassword(String pwd) {
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100000; i++) {
             pwd = ProofOfWorkUtils.sha256(pwd);
