@@ -131,6 +131,10 @@ public class CommentController {
     }
 
     private void updateCommentStatus(Long id, CommentStatus status) {
+        if (CommentStatus.DELETED == status) {
+            commentRepository.deleteById(id);
+            return;
+        }
         commentRepository.findById(id).ifPresent(comment -> {
             comment.setStatus(status);
             commentRepository.save(comment);
